@@ -3,9 +3,18 @@ from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 import joblib
 import pandas as pd
-import re
+from fastapi.middleware.cors import CORSMiddleware  # <-- Import CORS middleware
 
 app = FastAPI()
+
+# ✅ Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Load model
 try:
@@ -14,7 +23,6 @@ try:
 except Exception as e:
     raise Exception(f"Model load failed: {e}")
 
-# Store scored leads in memory
 leads_db = []
 
 class LeadData(BaseModel):
@@ -27,7 +35,6 @@ class LeadData(BaseModel):
     Interaction_Frequency: str
     Comments: Optional[str] = ""
     
-    # Validation
     @validator('Credit_Score')
     def valid_credit_score(cls, v):
         if not (300 <= v <= 850):
@@ -55,7 +62,6 @@ def score_lead(data: LeadData):
         
         proba = model.predict_proba(input_df)[0][1]
         initial_score = round(proba * 100)
-
         reranked_score = rerank_score(initial_score, data.Comments)
 
         lead_entry = {
@@ -96,7 +102,3 @@ def rerank_score(score, comment):
             score += val
 
     return max(0, min(100, score))
-
-@app.get("/leads")
-def get_leads():
-    return {"leads": leads_db}
